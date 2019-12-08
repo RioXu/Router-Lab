@@ -53,7 +53,6 @@ int main(int argc, char *argv[]) {
       // What to do?
       // send complete routing table to every interface
       // ref. RFC2453 3.8
-      // multicast MAC for 224.0.0.9 is 01:00:5e:00:00:09
       printf("30s Timer\n");
       last_time = time;
     }
@@ -108,14 +107,33 @@ int main(int argc, char *argv[]) {
           // assemble
           // IP
           output[0] = 0x45;
-          // ...
+		  output[1] = 0;
+		  int length = 32 + 20*rip.numEntries;
+		  //Total Length
+		  output[2] = length >> 8;
+		  output[3] = length & 0xff;
+		  //Identifier
+		  output[4] = 0;
+		  output[5] = 0;
+		  //Flags/Offset
+		  output[6] = 0;
+		  output[7] = 0;
+		  //TTL
+		  output[8] = 1;
+		  //Protocal: UDP
+		  output[9] = 17;
+		  //checksum
+		  forward(output);
+		  
+		  
+
           // UDP
           // port = 520
           output[20] = 0x02;
           output[21] = 0x08;
           // ...
           // RIP
-          uint32_t rip_len = assemble(&resp, &output[20 + 8]);
+          uint32_t rip_len = assemble(&rip, &output[20 + 8]);
           // checksum calculation for ip and udp
           // if you don't want to calculate udp checksum, set it to zero
           // send it back
