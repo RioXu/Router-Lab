@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vector>
+using namespace std;
 typedef struct
 {
   uint32_t addr;
@@ -15,6 +16,7 @@ typedef struct
   uint32_t metric;
 } RoutingTableEntry;
 #define RIP_MAX_ENTRY 25
+typedef uint32_t in_addr_t;
 typedef struct
 {
   // all fields are big endian
@@ -45,6 +47,8 @@ extern vector<RoutingTableEntry> table;
 
 //read addr from packet
 extern uint32_t get_int32(const uint8_t *packet, int base_index, bool isBigEndian);
+//write addr to packet`
+extern void write_int32(uint8_t *packet, int index, uint32_t addr, bool isBigEndian);
 
 uint8_t packet[2048];
 uint8_t output[2048];
@@ -77,7 +81,7 @@ int main(int argc, char *argv[])
         .addr = addrs[i] & 0x00ffffff, // big endian
         .len = 24,                     // small endian
         .if_index = i,                 // small endian
-        .nexthop = 0,                   // big endian, means direct
+        .nexthop = 0,                  // big endian, means direct
         .metric = 16                   //potential problem
     };
     update(true, entry);
@@ -128,11 +132,12 @@ int main(int argc, char *argv[])
       printf("Invalid IP Checksum\n");
       continue;
     }
-    in_addr_t src_addr, dst_addr;
+    in_addr_t src_addr, dst_addr, src_port_addr;
     // extract src_addr and dst_addr from packet
     // big endian
     src_addr = get_int32(packet, 12, true);
     dst_addr = get_int32(packet, 16, true);
+    src_port_addr = addrs[if_index];
 
     // 2. check whether dst is me
     bool dst_is_me = false;
@@ -162,16 +167,28 @@ int main(int argc, char *argv[])
         {
           // 3a.3 request, ref. RFC2453 3.9.1
           // only need to respond to whole table requests in the lab
+          if (rip.entries[0].metric != 16)
+          {
+            printf("request rip entry's metric is not 16, no response.\n");
+            continue;
+          }
           RipPacket resp;
           // TODO: fill resp
           resp.numEntries = table.size();
           resp.command = 2; //response
           for (int i = 0; i < table.size(); i++)
           {
-            resp.entries[i].addr = table[i].addr;
-            resp.entries[i].mask = (0xffffffff >> (32 - table[i].len));
-            resp.entries[i].nexthop = 0;
-            resp.entries[i].metric = 0;
+            uint32_t t_addr = table[i].addr;
+            uint32_t t_mask = (0xffffffff >> (32 - table[i].len));
+            if ((t_addr & t_mask) == (src_addr & t_mask))
+            {
+              resp.numEntries--;
+              continue;
+            }
+            resp.entries[i].addr = t_addr;
+            resp.entries[i].mask = t_mask;
+            resp.entries[i].nexthop = table[i].nexthop;
+            resp.entries[i].metric = table[i].metric;
           }
           memcpy(output, packet, res);
           // IP
@@ -193,7 +210,8 @@ int main(int argc, char *argv[])
           output[9] = 17;
           //checksum
           forward(output, res);
-
+          write_int32(output, 12, src_port_addr, true);
+          write_int32(output, 16, src_addr, true);
           // UDP
           // source port = 520
           output[20] = 0x02;
@@ -240,12 +258,25 @@ int main(int argc, char *argv[])
             {
               //found
               entry.if_index = dest_if;
-              update(true, entry);    
+              if (entry.metric > 16)
+              {
+                update(false, entry); //delete
+                printf("delete route:\n");
+                printf("\taddr: %d\n\tlen: %d\n\tnexthop: %d\n\tif_index: %d\n\tmetric: %d\n", entry.addr, entry.len, entry.nexthop, entry.if_index, entry.metric);
+              }
+              else
+              {
+                update(true, entry);
+                printf("update route:\n");
+                printf("\taddr: %d\n\tlen: %d\n\tnexthop: %d\n\tif_index: %d\n\tmetric: %d\n", entry.addr, entry.len, entry.nexthop, entry.if_index, entry.metric);
+              }
             }
             else
             {
               //not found
-              update(true,entry);
+              update(true, entry);
+              printf("insert route:\n");
+              printf("\taddr: %d\n\tlen: %d\n\tnexthop: %d\n\tif_index: %d\n\tmetric: %d\n", entry.addr, entry.len, entry.nexthop, entry.if_index, entry.metric);
             }
           }
 

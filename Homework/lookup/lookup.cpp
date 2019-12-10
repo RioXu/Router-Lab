@@ -40,7 +40,7 @@ void update(bool insert, RoutingTableEntry entry)
 					table[i] = entry;
 				else
 				{
-					if (table[i].metric > entry.metric)
+					if (table[i].metric >= entry.metric)
 						table[i] = entry;
 				}
 			}

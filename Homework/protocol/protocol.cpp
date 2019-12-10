@@ -43,7 +43,7 @@ bool check_mask(uint32_t mask)
 	int init_last_digit = last_digit;
 	for (int i = 1; i < 32; i++)
 	{
-		int digit = (mask>>i) & 1;
+		int digit = (mask >> i) & 1;
 		if (digit != last_digit)
 			num_change++;
 		last_digit = digit;
@@ -53,6 +53,16 @@ bool check_mask(uint32_t mask)
 	if (init_last_digit == 1 && num_change > 0)
 		return false;
 	return true;
+}
+
+void write_int32(uint8_t *packet, int index, uint32_t addr, bool isBigEndian)
+{
+	if (!isBigEndian)
+		addr = BigLittleSwap32(addr);
+	packet[index] = addr & 0xff;
+	packet[index + 1] = (addr >> 8) & 0xff;
+	packet[index + 2] = (addr >> 16) & 0xff;
+	packet[index + 3] = (addr >> 24) & 0xff;
 }
 
 uint32_t get_int32(const uint8_t *packet, int base_index, bool isBigEndian)
@@ -100,7 +110,7 @@ bool disassemble(const uint8_t *packet, uint32_t len, RipPacket *output)
 		return false;
 	//开始解析
 	//（ip长度-ip报头长度-udp报头长度-ripv2头部长度）/单条rip长度
-	uint32_t numEntries = (len - 4*(packet[0] & 0x0f)-12) / 20;
+	uint32_t numEntries = (len - 4 * (packet[0] & 0x0f) - 12) / 20;
 
 	if (numEntries <= 0)
 		return false;
@@ -114,15 +124,16 @@ bool disassemble(const uint8_t *packet, uint32_t len, RipPacket *output)
 		if (!correspond)
 			return false;
 		//判断route tag
-		uint16_t route_tag = (packet[index+2]<<8)+packet[index+3];
-		if(route_tag!=0) return false;
-		uint32_t addr = get_int32(packet, index+4 , true);
-		uint32_t mask = get_int32(packet, index+8 , false);
+		uint16_t route_tag = (packet[index + 2] << 8) + packet[index + 3];
+		if (route_tag != 0)
+			return false;
+		uint32_t addr = get_int32(packet, index + 4, true);
+		uint32_t mask = get_int32(packet, index + 8, false);
 		if (!check_mask(mask))
 			return false;
 		mask = BigLittleSwap32(mask);
-		uint32_t nexthop = get_int32(packet, index+12 , true);
-		int metric = get_int32(packet, index+16 , false);
+		uint32_t nexthop = get_int32(packet, index + 12, true);
+		int metric = get_int32(packet, index + 16, false);
 		if (metric < 1 || metric > 16)
 			return false;
 		metric = BigLittleSwap32(metric);
@@ -166,27 +177,27 @@ uint32_t assemble(const RipPacket *rip, uint8_t *buffer)
 		//addr
 		uint32_t addr = rip->entries[i].addr;
 		buffer[index + 4] = addr & 0xff;
-		buffer[index + 5] = (addr>>8) & 0xff;
-		buffer[index + 6] = (addr>>16) & 0xff;
-		buffer[index + 7] = (addr>>24) & 0xff;
+		buffer[index + 5] = (addr >> 8) & 0xff;
+		buffer[index + 6] = (addr >> 16) & 0xff;
+		buffer[index + 7] = (addr >> 24) & 0xff;
 		//mask
 		uint32_t mask = rip->entries[i].mask;
 		buffer[index + 8] = mask & 0xff;
-		buffer[index + 9] = (mask>>8) & 0xff;
-		buffer[index + 10] = (mask>>16) & 0xff;
-		buffer[index + 11] = (mask>>24) & 0xff;
+		buffer[index + 9] = (mask >> 8) & 0xff;
+		buffer[index + 10] = (mask >> 16) & 0xff;
+		buffer[index + 11] = (mask >> 24) & 0xff;
 		//nexthop
 		uint32_t nexthop = rip->entries[i].nexthop;
 		buffer[index + 12] = nexthop & 0xff;
-		buffer[index + 13] = (nexthop>>8) & 0xff;
-		buffer[index + 14] = (nexthop>>16) & 0xff;
-		buffer[index + 15] = (nexthop>>24) & 0xff;
+		buffer[index + 13] = (nexthop >> 8) & 0xff;
+		buffer[index + 14] = (nexthop >> 16) & 0xff;
+		buffer[index + 15] = (nexthop >> 24) & 0xff;
 		//metric
 		uint32_t metric = rip->entries[i].metric;
 		buffer[index + 16] = metric & 0xff;
-		buffer[index + 17] = (metric>>8) & 0xff;
-		buffer[index + 18] = (metric>>16) & 0xff;
-		buffer[index + 19] = (metric>>24) & 0xff;
+		buffer[index + 17] = (metric >> 8) & 0xff;
+		buffer[index + 18] = (metric >> 16) & 0xff;
+		buffer[index + 19] = (metric >> 24) & 0xff;
 		index += 20;
 	}
 	return index;
