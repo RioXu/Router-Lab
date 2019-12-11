@@ -50,6 +50,48 @@ extern uint32_t get_int32(const uint8_t *packet, int base_index, bool isBigEndia
 //write addr to packet`
 extern void write_int32(uint8_t *packet, int index, uint32_t addr, bool isBigEndian);
 
+//封装packet,返回packet字节数
+int wrap_packet(uint8_t *output, uint32_t src_addr, uint32_t dst_addr, const RipPacket *rip)
+{
+  output[0] = 0x45;
+  output[1] = 0;
+  int ip_len = 32 + 20 * rip->numEntries;
+  //Total Length
+  output[2] = ip_len >> 8;
+  output[3] = ip_len & 0xff;
+  //Identifier
+  output[4] = 0;
+  output[5] = 0;
+  //Flags/Offset
+  output[6] = 0;
+  output[7] = 0;
+  //TTL
+  output[8] = 2;
+  //Protocal: UDP
+  output[9] = 17;
+  //checksum
+  forward(output, ip_len);
+  write_int32(output, 12, src_addr, true);
+  write_int32(output, 16, dst_addr, true);
+  // UDP
+  // source port = 520
+  output[20] = 0x02;
+  output[21] = 0x08;
+  //dest port = 520
+  output[22] = 0x02;
+  output[23] = 0x08;
+  //length
+  int udp_len = ip_len - 20;
+  output[24] = udp_len >> 8;
+  output[25] = udp_len & 0xff;
+  //checksum(disabled)
+  output[26] = 0;
+  output[27] = 0;
+  // RIP
+  uint32_t rip_len = assemble(rip, &output[20 + 8]);
+  return ip_len;
+}
+
 uint8_t packet[2048];
 uint8_t output[2048];
 // 0: 10.0.0.1
@@ -95,6 +137,7 @@ int main(int argc, char *argv[])
     {
       // What to do?
       // send complete routing table to every interface
+
       // ref. RFC2453 3.8
       // multicast MAC for 224.0.0.9 is 01:00:5e:00:00:09
       printf("30s Timer\n");
@@ -191,47 +234,12 @@ int main(int argc, char *argv[])
             resp.entries[i].metric = table[i].metric;
           }
           memcpy(output, packet, res);
-          // IP
-          output[0] = 0x45;
-          output[1] = 0;
-          int ip_len = 32 + 20 * resp.numEntries;
-          //Total Length
-          output[2] = ip_len >> 8;
-          output[3] = ip_len & 0xff;
-          //Identifier
-          output[4] = 0;
-          output[5] = 0;
-          //Flags/Offset
-          output[6] = 0;
-          output[7] = 0;
-          //TTL
-          output[8] = 2;
-          //Protocal: UDP
-          output[9] = 17;
-          //checksum
-          forward(output, res);
-          write_int32(output, 12, src_port_addr, true);
-          write_int32(output, 16, src_addr, true);
-          // UDP
-          // source port = 520
-          output[20] = 0x02;
-          output[21] = 0x08;
-          //dest port = 520
-          output[22] = 0x02;
-          output[23] = 0x08;
-          //length
-          int udp_len = ip_len - 20;
-          output[24] = udp_len >> 8;
-          output[25] = udp_len & 0xff;
-          //checksum(disabled)
-          output[26] = 0;
-          output[27] = 0;
-          // RIP
-          uint32_t rip_len = assemble(&resp, &output[20 + 8]);
+          int ip_len = wrap_packet(output,src_port_addr,src_addr,&resp);
+        
           // checksum calculation for ip and udp
           // if you don't want to calculate udp checksum, set it to zero
           // send it back
-          HAL_SendIPPacket(if_index, output, rip_len + 20 + 8, src_mac);
+          HAL_SendIPPacket(if_index, output, ip_len, src_mac);
         }
         else
         {
