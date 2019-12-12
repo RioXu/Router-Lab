@@ -136,7 +136,6 @@ bool disassemble(const uint8_t *packet, uint32_t len, RipPacket *output)
 		int metric = get_int32(packet, index + 16, false);
 		if (metric < 1 || metric > 16)
 			return false;
-		metric = BigLittleSwap32(metric);
 		output->entries[i].addr = addr;
 		output->entries[i].mask = mask;
 		output->entries[i].nexthop = nexthop;
@@ -176,28 +175,17 @@ uint32_t assemble(const RipPacket *rip, uint8_t *buffer)
 		buffer[index + 3] = 0;
 		//addr
 		uint32_t addr = rip->entries[i].addr;
-		buffer[index + 4] = addr & 0xff;
-		buffer[index + 5] = (addr >> 8) & 0xff;
-		buffer[index + 6] = (addr >> 16) & 0xff;
-		buffer[index + 7] = (addr >> 24) & 0xff;
+		write_int32(buffer, 4, addr, true);
 		//mask
 		uint32_t mask = rip->entries[i].mask;
-		buffer[index + 8] = mask & 0xff;
-		buffer[index + 9] = (mask >> 8) & 0xff;
-		buffer[index + 10] = (mask >> 16) & 0xff;
-		buffer[index + 11] = (mask >> 24) & 0xff;
+		write_int32(buffer, 8, mask, true);
 		//nexthop
 		uint32_t nexthop = rip->entries[i].nexthop;
-		buffer[index + 12] = nexthop & 0xff;
-		buffer[index + 13] = (nexthop >> 8) & 0xff;
-		buffer[index + 14] = (nexthop >> 16) & 0xff;
-		buffer[index + 15] = (nexthop >> 24) & 0xff;
+		write_int32(buffer, 12, nexthop, true);
 		//metric
 		uint32_t metric = rip->entries[i].metric;
-		buffer[index + 16] = metric & 0xff;
-		buffer[index + 17] = (metric >> 8) & 0xff;
-		buffer[index + 18] = (metric >> 16) & 0xff;
-		buffer[index + 19] = (metric >> 24) & 0xff;
+		write_int32(buffer, 16, metric, false);
+
 		index += 20;
 	}
 	return index;
