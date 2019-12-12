@@ -7,6 +7,7 @@
 #include <string.h>
 #include <vector>
 using namespace std;
+/*
 typedef struct
 {
   uint32_t addr;
@@ -37,6 +38,7 @@ typedef struct
   // we don't store 'zero', as it is always 0
   RipEntry entries[RIP_MAX_ENTRY];
 } RipPacket;
+*/
 extern bool validateIPChecksum(uint8_t *packet, size_t len);
 extern void update(bool insert, RoutingTableEntry entry);
 bool query(uint32_t addr, uint32_t *nexthop, uint32_t *if_index, uint32_t *metric);
@@ -124,7 +126,7 @@ int main(int argc, char *argv[])
         .len = 24,                     // small endian
         .if_index = i,                 // small endian
         .nexthop = 0,                  // big endian, means direct
-        .metric = 16                   //potential problem
+        .metric = 0                  //potential problem
     };
     update(true, entry);
   }
@@ -243,7 +245,7 @@ int main(int argc, char *argv[])
           {
             uint32_t t_addr = table[i].addr;
             uint32_t t_mask = (0xffffffff >> (32 - table[i].len));
-            if ((t_addr & t_mask) == (src_addr & t_mask))
+            if ((t_addr & t_mask) == (src_addr & t_mask)||t_addr==table[i].nexthop)
             {
               resp.numEntries--;
               continue;
