@@ -137,6 +137,26 @@ int main(int argc, char *argv[])
     {
       // What to do?
       // send complete routing table to every interface
+      RipPacket resp;
+      // TODO: fill resp
+      resp.numEntries = table.size();
+      resp.command = 2; //response
+      for (int i = 0; i < table.size(); i++)
+      {
+        uint32_t t_addr = table[i].addr;
+        uint32_t t_mask = (0xffffffff >> (32 - table[i].len));
+        resp.entries[i].addr = t_addr;
+        resp.entries[i].mask = t_mask;
+        resp.entries[i].nexthop = table[i].nexthop;
+        resp.entries[i].metric = table[i].metric;
+      }
+      in_addr_t multicast_addr = 0x090000e0;
+      macaddr_t multicast_mac = {0x01,0x00,0x5e,0x00,0x00,0x09};
+      for (int i = 0; i < N_IFACE_ON_BOARD; i++)
+      {
+        int ip_len = wrap_packet(output, addrs[i], multicast_addr, &resp);
+        HAL_SendIPPacket(i, output, ip_len, multicast_mac);
+      }
 
       // ref. RFC2453 3.8
       // multicast MAC for 224.0.0.9 is 01:00:5e:00:00:09
@@ -234,8 +254,8 @@ int main(int argc, char *argv[])
             resp.entries[i].metric = table[i].metric;
           }
           memcpy(output, packet, res);
-          int ip_len = wrap_packet(output,src_port_addr,src_addr,&resp);
-        
+          int ip_len = wrap_packet(output, src_port_addr, src_addr, &resp);
+
           // checksum calculation for ip and udp
           // if you don't want to calculate udp checksum, set it to zero
           // send it back
